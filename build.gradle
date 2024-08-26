@@ -5,11 +5,11 @@ targetCompatibility = 1.8
 repositories {
     mavenCentral()
 }
-
-task srcZip(type: Zip) {
-    classifier = 'src'
-    from projectDir
-    include 'src/**/*'
-    include 'build.gradle'
-    include 'README.md'
-}
+//mavenCentral
+//task srcZip(type: Zip) {
+//    classifier = 'src'
+//    from projectDir
+//    include 'src/**/*'
+//    include 'build.gradle'
+//    include 'README.md'
+//}
