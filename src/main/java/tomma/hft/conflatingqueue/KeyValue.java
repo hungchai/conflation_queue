@@ -13,5 +13,4 @@ public interface KeyValue<K, V> {
 	 * @return the value
 	 */
 	V getValue();
-
 }

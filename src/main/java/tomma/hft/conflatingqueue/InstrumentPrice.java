@@ -1,26 +1,23 @@
 package tomma.hft.conflatingqueue;
 
-public class InstrumentPrice implements KeyValue<String, Long>{
+import sun.misc.Contended;
 
-    private String instrument;
-    private long price;
+import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
-    public InstrumentPrice(String instrument, long price) {
-        this.instrument = instrument;
-        this.price = price;
-    }
+import static tomma.hft.conflatingqueue.PriceEntry.InstrumentPrice.State.NOT_INQUEUE;
 
-    @Override
-    public String getKey() {
-        return instrument;
-    }
+class PriceEntry {
+    @Contended
+    static class InstrumentPrice {
+        enum State {INQUEUE, NOT_INQUEUE}
+        private long price;
+        volatile State state;
 
-    @Override
-    public Long getValue() {
-        return price;
-    }
+        public InstrumentPrice(long price) {
+            this.price = price;
+            state = NOT_INQUEUE;
+        }
 
-    public void setPrice(long price) {
-        this.price = price;
     }
 }
