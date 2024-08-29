@@ -19,6 +19,6 @@ final class Entry<K,V> implements KeyValue<K, AtomicReference<V>> {
 
     @Override
     public AtomicReference<V> getValue() {
-        return value);
+        return value;
     }
 }

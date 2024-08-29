@@ -11,7 +11,7 @@ public class ConflatingQueueImpl<K,V> implements ConflatingQueue<K, V>  {
 
     private final Map<K, KeyValue<K,V>> instrumentPrice = new ConcurrentHashMap<>();
     private final AtomicBoolean lock = new AtomicBoolean(false);
-    private final ConcurrentLinkedDeque<K> deque = new ConcurrentLinkedDeque<>();
+    private final ConcurrentLinkedDeque<Entry<K, V> deque = new ConcurrentLinkedDeque<>();
 
     @Override
     public boolean offer(final KeyValue<K, V> keyValue) {
@@ -20,7 +20,7 @@ public class ConflatingQueueImpl<K,V> implements ConflatingQueue<K, V>  {
             Objects.requireNonNull(keyValue.getKey());
             Objects.requireNonNull(keyValue.getValue());
             String conflationKey = keyValue.getKey();
-            final Entry<K,MarkedValue<V>> entry = instrumentPrice.computeIfAbsent(conflationKey, k -> new Entry<>(k, new MarkedValue<>()));
+            final Entry<K, InstrumentPrice.PriceEntry<V>> entry = instrumentPrice.computeIfAbsent(conflationKey, k -> new Entry<>(k, new MarkedValue<>()));
             final MarkedValue<V> newValue = markedValue.initializeWithUnconfirmed(value);
             final MarkedValue<V> oldValue = entry.value.getAndSet(newValue);
             final V add;
