@@ -3,13 +3,13 @@ package tomma.hft.conflatingqueue;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
-final class Entry<K,V> implements KeyValue<K, AtomicReference<V>> {
+final class Entry<K,V> implements KeyValue<K, V> {
     final K key;
-    final AtomicReference<V> value;
+    final AtomicReference<V> priceValue;
 
     Entry(final K key, final V value) {
         this.key = Objects.requireNonNull(key);
-        this.value = new AtomicReference<>(value);//nulls allowed for value
+        this.priceValue = new AtomicReference<>(value);//nulls allowed for value
     }
 
     @Override
@@ -18,7 +18,12 @@ final class Entry<K,V> implements KeyValue<K, AtomicReference<V>> {
     }
 
     @Override
-    public AtomicReference<V> getValue() {
-        return value;
+    public V getValue() {
+        return priceValue.get();
     }
+
+    public AtomicReference<V> getPriceValue() {
+        return priceValue;
+    }
+
 }

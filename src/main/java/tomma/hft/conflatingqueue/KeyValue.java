@@ -8,9 +8,5 @@ public interface KeyValue<K, V> {
 	 */
 	K getKey();
 
-	/**
-	 * Returns the value
-	 * @return the value
-	 */
 	V getValue();
 }
