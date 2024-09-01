@@ -1,8 +1,9 @@
 package tomma.hft.conflatingqueue;
 
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import util.Logger;
+import org.junit.*;
 
 import java.util.*;
 
@@ -26,16 +27,30 @@ class ConflatingQueueImplTest {
         keys.add(END_KEY);
         final Random rnd = new Random();
         QueueKeyValue<String, Long> kv = new QueueKeyValue<>("NaN", 0L);
+
+        Map<String, Long> assertMap = new HashMap<>();
+        String assertFirstKey = "Nan";
+        String assertLastKey = "Nan";
+
         for (int i = 0; i < TOTAL; i++) {
             final int keyIndex = rnd.nextInt(keyCount);
             final String key = keys.get(keyIndex);
             kv.setKey(key);
             kv.setValue((long) i);
             conflationQueue.offer(kv);
+
+            if (i == 0) assertFirstKey = key;
+            if (!assertMap.containsKey(key)) assertLastKey = key;
+            assertMap.put(key,(long) i);
+
         }
-        Map t = conflationQueue.getInstrumentPriceMap();
+        Map t = conflationQueue.getEntryKeyMap();
         Deque d = conflationQueue.getDeque();
 
+        Assertions.assertEquals(assertMap.size(), t.size());
+        Assertions.assertEquals(assertMap.size(), d.size());
+        Assertions.assertEquals(assertFirstKey,  ((Entry)d.peek()).getKey());
+        Assertions.assertEquals(assertLastKey,  ((Entry)d.peekLast()).getKey());
 
     }
 }

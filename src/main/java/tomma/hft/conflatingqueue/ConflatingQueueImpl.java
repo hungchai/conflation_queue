@@ -8,13 +8,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import util.Logger;
 
 public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
-    private final Map<K, Entry<K, QueueValue<V>>> instrumentPriceMap;
+    private final Map<K, Entry<K, QueueValue<V>>> entryKeyMap;
 
     private final Deque<Entry<K, QueueValue<V>>> deque;
 
@@ -24,7 +23,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     QueueValue<V> priceValueTake = new QueueValue<>();
 
     ConflatingQueueImpl(int keyCnt) {
-        instrumentPriceMap = new ConcurrentHashMap<>(keyCnt);
+        entryKeyMap = new ConcurrentHashMap<>(keyCnt);
         deque = new ConcurrentLinkedDeque<>();
     }
 
@@ -36,7 +35,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             Objects.requireNonNull(keyValue.getValue());
             K conflationKey = keyValue.getKey();
             V value = keyValue.getValue();
-            final Entry<K, QueueValue<V>> entry = instrumentPriceMap.computeIfAbsent(conflationKey, k -> new Entry<>(k, new QueueValue<>()));
+            final Entry<K, QueueValue<V>> entry = entryKeyMap.computeIfAbsent(conflationKey, k -> new Entry<>(k, new QueueValue<>()));
             final QueueValue<V> newValue = priceValueOffer.initializeWithUnconfirmed(value);
             final QueueValue<V> oldValue = entry.priceValue.getAndSet(newValue);
             final V add;
@@ -86,8 +85,8 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         return false;
     }
 
-    public Map<K, Entry<K, QueueValue<V>>> getInstrumentPriceMap() {
-        return instrumentPriceMap;
+    public Map<K, Entry<K, QueueValue<V>>> getEntryKeyMap() {
+        return entryKeyMap;
     }
 
     public Deque<Entry<K, QueueValue<V>>> getDeque() {

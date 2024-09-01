@@ -13,7 +13,7 @@ final class Entry<K,V>{
     }
 
     public K getKey() {
-        return null;
+        return key;
     }
 
     public V getValue() {
