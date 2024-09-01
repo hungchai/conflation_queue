@@ -19,7 +19,8 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
     @Contended
     QueueValue<V> priceValueOffer = new QueueValue<>();
-//    @Contended
+
+    @Contended
     QueueValue<V> priceValueTake = new QueueValue<>();
 
     ConflatingQueueImpl(int keyCnt) {
@@ -73,11 +74,22 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     @Override
     public KeyValue<K, V> take() throws InterruptedException {
         try {
+            final Entry<K, QueueValue<V>> entry = deque.poll();
+            if (entry != null){
+                final QueueValue<V> exchangeValue = priceValueTake.initalizeWithUnused(null);
+                final QueueValue<V> polledValue = entry.priceValue.getAndSet(exchangeValue);
+                V value = polledValue.awaitAndRelease();
+                K key = entry.key;
+                priceValueTake = polledValue;
+                return new QueueKeyValue<>(key, value);
+            }
+            else {
+                return null;
+            }
+
         } catch (RuntimeException e) {
             throw e;
-        } finally {
         }
-        return null;
     }
 
     @Override
