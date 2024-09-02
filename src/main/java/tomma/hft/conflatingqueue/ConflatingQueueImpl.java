@@ -74,19 +74,19 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     @Override
     public KeyValue<K, V> take() throws InterruptedException {
         try {
-            final Entry<K, QueueValue<V>> entry = deque.poll();
-            if (entry != null){
-                final QueueValue<V> exchangeValue = priceValueTake.initalizeWithUnused(null);
-                final QueueValue<V> polledValue = entry.priceValue.getAndSet(exchangeValue);
-                V value = polledValue.awaitAndRelease();
-                K key = entry.key;
-                priceValueTake = polledValue;
-                return new QueueKeyValue<>(key, value);
+            Entry<K, QueueValue<V>> entry;
+            do {
+                entry = deque.poll();
             }
-            else {
-                return null;
-            }
+            while (entry == null);
 
+//            final QueueValue<V> exchangeValue = priceValueTake.initalizeWithUnused(null);
+//            final QueueValue<V> polledValue = entry.priceValue.getAndSet(exchangeValue);
+            final QueueValue<V> polledValue = entry.priceValue.get();
+            V value = polledValue.awaitAndRelease();
+            K key = entry.key;
+//            priceValueTake = polledValue;
+            return new QueueKeyValue<>(key, value);
         } catch (RuntimeException e) {
             throw e;
         }
@@ -107,6 +107,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
     static class QueueValue<V> {
         enum State {UNUSED, UNCONFIRMED, CONFIRMED}
+
         private V value;
         volatile QueueValue.State state;
 
@@ -119,6 +120,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             this.state = QueueValue.State.UNCONFIRMED;
             return this;
         }
+
         QueueValue<V> initalizeWithUnused(final V value) {
             this.value = value;//nulls allowed here
             this.state = QueueValue.State.UNUSED;
@@ -137,6 +139,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         void confirm() {
             this.state = QueueValue.State.CONFIRMED;
         }
+
         V awaitAndRelease() {
             awaitFinalState();
             return release();
@@ -149,6 +152,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             } while (s == QueueValue.State.UNCONFIRMED);
             return s;
         }
+
         V release() {
             final V released = value;
             state = QueueValue.State.UNUSED;
