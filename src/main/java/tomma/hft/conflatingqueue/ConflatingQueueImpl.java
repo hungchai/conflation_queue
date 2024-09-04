@@ -74,9 +74,15 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     @Override
     public KeyValue<K, V> take() throws InterruptedException {
         try {
-            Entry<K, QueueValue<V>> entry;
+            Entry<K, QueueValue<V>> entry = null;
             do {
-                entry = deque.poll();
+                try {
+                    if (Thread.interrupted())
+                        throw new InterruptedException();
+                    entry = deque.poll();
+                }catch(Exception ex) {
+                    Logger.error("unknown exception",ex);
+                }
             }
             while (entry == null);
 
@@ -109,35 +115,35 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         enum State {UNUSED, UNCONFIRMED, CONFIRMED}
 
         private V value;
-        volatile QueueValue.State state;
+        volatile State state;
 
         public QueueValue() {
-            this.state = QueueValue.State.UNUSED;
+            this.state = State.UNUSED;
         }
 
         QueueValue<V> initializeWithUnconfirmed(final V value) {
             this.value = Objects.requireNonNull(value);
-            this.state = QueueValue.State.UNCONFIRMED;
+            this.state = State.UNCONFIRMED;
             return this;
         }
 
         QueueValue<V> initalizeWithUnused(final V value) {
             this.value = value;//nulls allowed here
-            this.state = QueueValue.State.UNUSED;
+            this.state = State.UNUSED;
             return this;
         }
 
         void confirmWith(final V value) {
             this.value = value;
-            this.state = QueueValue.State.CONFIRMED;
+            this.state = State.CONFIRMED;
         }
 
         boolean isNotInQueue() {
-            return state == QueueValue.State.UNUSED;
+            return state == State.UNUSED;
         }
 
         void confirm() {
-            this.state = QueueValue.State.CONFIRMED;
+            this.state = State.CONFIRMED;
         }
 
         V awaitAndRelease() {
@@ -145,17 +151,17 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             return release();
         }
 
-        QueueValue.State awaitFinalState() {
-            QueueValue.State s;
+        State awaitFinalState() {
+            State s;
             do {
                 s = state;
-            } while (s == QueueValue.State.UNCONFIRMED);
+            } while (s == State.UNCONFIRMED);
             return s;
         }
 
         V release() {
             final V released = value;
-            state = QueueValue.State.UNUSED;
+            state = State.UNUSED;
             this.value = null;
             return released;
         }

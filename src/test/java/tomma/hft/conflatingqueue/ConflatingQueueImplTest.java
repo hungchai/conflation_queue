@@ -3,10 +3,13 @@ package tomma.hft.conflatingqueue;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.*;
 import util.Logger;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
@@ -32,7 +35,6 @@ class ConflatingQueueImplTest {
         Map<String, Long> assertMap = new HashMap<>();
         String assertFirstKey = "Nan";
         String assertLastKey = "Nan";
-        Long assertLastValue= 0L;
 
         for (long i = 0; i < TOTAL; i++) {
             final int keyIndex = rnd.nextInt(keyCount);
@@ -47,21 +49,23 @@ class ConflatingQueueImplTest {
             }
             assertMap.put(kv.getKey(), kv.getValue());
         }
-        Map k = conflationQueue.getEntryKeyMap();
-        Deque d = conflationQueue.getDeque();
+        Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
+        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
-        Assertions.assertEquals(assertMap.size(), k.size());
-        Assertions.assertEquals(assertMap.size(), d.size());
-        Assertions.assertEquals(assertFirstKey,  ((Entry)d.peek()).getKey());
-        Assertions.assertEquals(assertLastKey,  ((Entry)d.peekLast()).getKey());
+        assertEquals(assertMap.size(), k.size());
+        assertEquals(assertMap.size(), d.size());
+        assert d.peek() != null;
+        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
+        assert d.peekLast() != null;
+        assertEquals(assertLastKey,  ((Entry<?, ?>)d.peekLast()).getKey());
 
         for (int j = 0; j < k.size(); j++) {
             try {
-                QueueKeyValue<String, Long> queueValue = (QueueKeyValue) conflationQueue.take();
-                Assertions.assertEquals(assertMap.get(queueValue.getKey()),  queueValue.getValue());
+                QueueKeyValue queueValue = (QueueKeyValue) conflationQueue.take();
+                assertEquals(assertMap.get(queueValue.getKey()),  queueValue.getValue());
 
                 if (j == k.size() - 1) {
-                    Assertions.assertEquals(assertLastKey,  queueValue.getKey());
+                    assertEquals(assertLastKey,  queueValue.getKey());
                 }
             }catch(Exception e) {
                 Logger.error(e.getMessage(), e);
@@ -69,4 +73,62 @@ class ConflatingQueueImplTest {
         }
         Assertions.assertTrue(d.isEmpty());
     }
+
+
+    @Test
+    void offerTakeConcurrent() throws InterruptedException {
+        conflationQueue = new ConflatingQueueImpl<>(keyCount);
+        Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
+        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
+
+        final List<String> keys = new ArrayList<>(keyCount + 1);
+        for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
+        final Random rnd = new Random();
+        QueueKeyValue<String, Long> kv = new QueueKeyValue<>("NaN", 0L);
+
+        Map<String, Long> assertMap = new ConcurrentHashMap<>();
+        AtomicReference<String> assertFirstKey = new AtomicReference<>("Nan");
+        AtomicReference<String> assertLastKey = new AtomicReference<>("Nan");
+        final Thread producer = new Thread(() -> {
+            for (long i = 0; i < TOTAL; i++) {
+                final int keyIndex = rnd.nextInt(keyCount);
+                final String key = keys.get(keyIndex);
+                kv.setKey(key);
+                kv.setValue(i);
+                assertMap.put(kv.getKey(), kv.getValue());
+                conflationQueue.offer(kv);
+//                if (i >= TOTAL - 100) {
+//                    Logger.info("p: " + kv.toString());
+//                }
+                if (i == 0) assertFirstKey.set(key);
+                if (!assertMap.containsKey(key)) {
+                    assertLastKey.set(kv.getKey());
+                }
+            }
+            kv.setKey(END_KEY);
+            kv.setValue(-1L);
+            conflationQueue.offer(kv);
+        });
+        producer.start();
+
+
+        final Thread consumer = new Thread(() -> {
+            KeyValue<String, Long>  queueValue = null;
+            do{
+                try {
+                    queueValue = conflationQueue.take();
+//                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
+                    if (queueValue.getKey().equals(END_KEY)) {
+                        Thread.interrupted();
+                        break;
+                    }
+                }catch(Exception e) {
+                    Logger.error(e.getMessage(), e);
+                }
+            }while (true);
+        });
+        consumer.start();
+        consumer.join();
+    }
+
 }

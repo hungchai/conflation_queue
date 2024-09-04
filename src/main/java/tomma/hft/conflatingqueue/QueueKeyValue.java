@@ -26,4 +26,12 @@ public class QueueKeyValue<K, V> implements KeyValue<K,V> {
     public void setValue(V value) {
         this.value = value;
     }
+
+    @Override
+    public String toString() {
+        return "QueueKeyValue{" +
+                "key=" + this.getKey() +
+                ", value=" + this.getValue() +
+                '}';
+    }
 }
