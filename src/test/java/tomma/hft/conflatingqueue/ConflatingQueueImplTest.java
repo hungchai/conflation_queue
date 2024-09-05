@@ -119,7 +119,7 @@ class ConflatingQueueImplTest {
                     queueValue = conflationQueue.take();
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
                     if (queueValue.getKey().equals(END_KEY)) {
-                        Thread.interrupted();
+                        Thread.currentThread().interrupt();
                         break;
                     }
                 }catch(Exception e) {
@@ -129,6 +129,7 @@ class ConflatingQueueImplTest {
         });
         consumer.start();
         consumer.join();
+
     }
 
 }
