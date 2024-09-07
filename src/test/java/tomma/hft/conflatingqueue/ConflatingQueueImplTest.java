@@ -13,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
-    private static final int TOTAL = 100_000_000;
+    private static final long TOTAL = 900_000_000;
     final int keyCount = 2 * 5000;
     final String END_KEY = "KEY_END";
 
@@ -97,9 +97,9 @@ class ConflatingQueueImplTest {
                 kv.setValue(i);
                 assertMap.put(kv.getKey(), kv.getValue());
                 conflationQueue.offer(kv);
-//                if (i >= TOTAL - 100) {
-//                    Logger.info("p: " + kv.toString());
-//                }
+                if (i % 100_000_000 == 0) {
+                    Logger.info("p: " + kv);
+                }
                 if (i == 0) assertFirstKey.set(key);
                 if (!assertMap.containsKey(key)) {
                     assertLastKey.set(kv.getKey());
@@ -114,14 +114,20 @@ class ConflatingQueueImplTest {
 
         final Thread consumer = new Thread(() -> {
             KeyValue<String, Long>  queueValue = null;
+            long i = 0;
             do{
                 try {
                     queueValue = conflationQueue.take();
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
+//                    Logger.info("d " + d.size());
+                    if (i % 100_000_000 == 0) {
+                        Logger.info("c: " + kv);
+                    }
                     if (queueValue.getKey().equals(END_KEY)) {
                         Thread.currentThread().interrupt();
                         break;
                     }
+                    i++;
                 }catch(Exception e) {
                     Logger.error(e.getMessage(), e);
                 }
