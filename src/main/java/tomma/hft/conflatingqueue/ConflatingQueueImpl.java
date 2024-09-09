@@ -13,6 +13,7 @@ import util.Logger;
 
 public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
+    @Contended
     private final Map<K, Entry<K, QueueValue<V>>> entryKeyMap;
 
     private final Deque<Entry<K, QueueValue<V>>> deque;
