@@ -8,12 +8,13 @@ import util.Logger;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
-    private static final long TOTAL = 900_000_000;
+    private static final long TOTAL = 10_000_000;
     final int keyCount = 2 * 5000;
     final String END_KEY = "KEY_END";
 
@@ -24,7 +25,7 @@ class ConflatingQueueImplTest {
 
     @Test
     void offer() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount);
+        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(TOTAL));
 
         final List<String> keys = new ArrayList<>(keyCount + 1);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
@@ -50,14 +51,14 @@ class ConflatingQueueImplTest {
             assertMap.put(kv.getKey(), kv.getValue());
         }
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
+        AtomicReferenceArray<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
         assertEquals(assertMap.size(), k.size());
-        assertEquals(assertMap.size(), d.size());
-        assert d.peek() != null;
-        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
-        assert d.peekLast() != null;
-        assertEquals(assertLastKey,  ((Entry<?, ?>)d.peekLast()).getKey());
+        assertEquals(assertMap.size(), d.length());
+        assert d.get(0) != null;
+        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.get(0)).getKey());
+        assert d.get(d.length()-1) != null;
+        assertEquals(assertLastKey,  ((Entry<?, ?>)d.get(d.length()-1)).getKey());
 
         for (int j = 0; j < k.size(); j++) {
             try {
@@ -71,15 +72,15 @@ class ConflatingQueueImplTest {
                 Logger.error(e.getMessage(), e);
             }
         }
-        Assertions.assertTrue(d.isEmpty());
+        Assertions.assertTrue(conflationQueue.getHead()-conflationQueue.getTail() == 0);
     }
 
 
     @Test
     void offerTakeConcurrent() throws InterruptedException {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount);
+        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(TOTAL));
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
+        AtomicReferenceArray<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
         final List<String> keys = new ArrayList<>(keyCount + 1);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);

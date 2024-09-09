@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import util.Logger;
 
@@ -16,7 +17,10 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     @Contended
     private final Map<K, Entry<K, QueueValue<V>>> entryKeyMap;
 
-    private final Deque<Entry<K, QueueValue<V>>> deque;
+    private final AtomicReferenceArray<Entry<K, QueueValue<V>>> deque;
+    private final int capacity;
+    private volatile int head = 0;
+    private volatile int tail = 0;
 
     @Contended
     QueueValue<V> priceValueOffer = new QueueValue<>();
@@ -24,9 +28,17 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     @Contended
     QueueValue<V> priceValueTake = new QueueValue<>();
 
-    ConflatingQueueImpl(int keyCnt) {
+    // Pool for reusable entries and QueueValues
+    private final EntryPool<K, V> entryPool;
+    private final QueueValuePool<V> queueValuePool;
+
+    ConflatingQueueImpl(int keyCnt, int capacity) {
+        this.capacity = capacity;
         entryKeyMap = new ConcurrentHashMap<>(keyCnt);
-        deque = new ConcurrentLinkedDeque<>();
+        deque = new AtomicReferenceArray<>(keyCnt);
+        // Initialize pools
+        this.entryPool = new EntryPool<>(capacity);
+        this.queueValuePool = new QueueValuePool<>(capacity);
     }
 
     @Override
@@ -37,7 +49,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             Objects.requireNonNull(keyValue.getValue());
             K conflationKey = keyValue.getKey();
             V value = keyValue.getValue();
-            final Entry<K, QueueValue<V>> entry = entryKeyMap.computeIfAbsent(conflationKey, k -> new Entry<>(k, new QueueValue<>()));
+            final Entry<K, QueueValue<V>> entry = entryKeyMap.computeIfAbsent(conflationKey, k -> this.entryPool.getOrCreateEntry(k));
             final QueueValue<V> newValue = priceValueOffer.initializeWithUnconfirmed(value);
             final QueueValue<V> oldValue = entry.priceValue.getAndSet(newValue);
             final V add;
@@ -47,7 +59,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
                     old = oldValue.release();
                     add = value;
                     newValue.confirm();
-                    deque.add(entry);
+                    addToDeque(entry);
 
                 } else {
                     old = oldValue.awaitAndRelease();
@@ -80,7 +92,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
                 try {
                     if (Thread.interrupted())
                         throw new InterruptedException();
-                    entry = deque.poll();
+                    entry = pollFromDeque();
                 }catch(Exception ex) {
                     Logger.error("unknown exception",ex);
                 }
@@ -104,14 +116,35 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         return false;
     }
 
+    private void addToDeque(Entry<K, QueueValue<V>> entry) {
+        // Set the entry in the AtomicReferenceArray at the tail position
+        deque.set(tail, entry);
+        tail = (tail + 1) % capacity;
+    }
+
+    private Entry<K, QueueValue<V>> pollFromDeque() {
+        if (isEmpty()) {
+            return null;
+        }
+        Entry<K, QueueValue<V>> entry = deque.get(head);
+        head = (head + 1) % capacity;
+        return entry;
+    }
+
     public Map<K, Entry<K, QueueValue<V>>> getEntryKeyMap() {
         return entryKeyMap;
     }
 
-    public Deque<Entry<K, QueueValue<V>>> getDeque() {
+    public AtomicReferenceArray<Entry<K, QueueValue<V>>> getDeque() {
         return deque;
     }
+    public int getHead() {
+        return head;
+    }
 
+    public int getTail() {
+        return tail;
+    }
     static class QueueValue<V> {
         enum State {UNUSED, UNCONFIRMED, CONFIRMED}
 
@@ -167,5 +200,39 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             return released;
         }
 
+    }
+
+    static class QueueValuePool<V> {
+        private final QueueValue<V>[] pool;
+        private int index = 0;
+
+        QueueValuePool(int size) {
+            pool = new QueueValue[size];
+            for (int i = 0; i < size; i++) {
+                pool[i] = new QueueValue<>();
+            }
+        }
+
+        QueueValue<V> getOrCreateQueueValue() {
+            return pool[index++ % pool.length];
+        }
+    }
+
+    // Pool for reusable Entry objects to avoid GC
+    static class EntryPool<K,V> {
+        private final Entry<K, QueueValue<V>>[] pool;
+        private int index = 0;
+
+        @SuppressWarnings("unchecked")
+        EntryPool(int size) {
+            pool = new Entry[size];
+        }
+
+        Entry<K, QueueValue<V>> getOrCreateEntry(K key) {
+            if (pool[index] == null) {
+                pool[index] = new Entry<>(key, new QueueValue<V>());
+            }
+            return pool[index++ % pool.length];
+        }
     }
 }
