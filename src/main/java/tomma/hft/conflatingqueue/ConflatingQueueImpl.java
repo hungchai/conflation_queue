@@ -229,10 +229,12 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         }
 
         Entry<K, QueueValue<V>> getOrCreateEntry(K key) {
-            if (pool[index] == null) {
-                pool[index] = new Entry<>(key, new QueueValue<V>());
+            int poolIndex = index % pool.length;
+            if (pool[poolIndex] == null) {
+                pool[poolIndex] = new Entry<>(key, new QueueValue<V>());
             }
-            return pool[index++ % pool.length];
+            index++;
+            return pool[poolIndex];
         }
     }
 }
