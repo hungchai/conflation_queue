@@ -17,7 +17,8 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     @Contended
     private final Map<K, Entry<K, QueueValue<V>>> entryKeyMap;
 
-    private final AtomicReferenceArray<Entry<K, QueueValue<V>>> deque;
+//    private final AtomicReferenceArray<Entry<K, QueueValue<V>>> deque;
+    private final Deque<Entry<K, QueueValue<V>>> deque;
     private final int capacity;
     private final int keyCnt;
     private volatile int head = 0;
@@ -37,7 +38,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         this.capacity = capacity;
         this.keyCnt = keyCnt;
         entryKeyMap = new ConcurrentHashMap<>(keyCnt);
-        deque = new AtomicReferenceArray<>(keyCnt);
+        deque = new ConcurrentLinkedDeque<>();
         // Initialize pools
         this.entryPool = new EntryPool<>(capacity);
         this.queueValuePool = new QueueValuePool<>(capacity);
@@ -115,12 +116,12 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
     @Override
     public boolean isEmpty() {
-        return false;
+        return deque.isEmpty();
     }
 
     private void addToDeque(Entry<K, QueueValue<V>> entry) {
         // Set the entry in the AtomicReferenceArray at the tail position
-        deque.set(tail, entry);
+        deque.add(entry);
         tail = (tail + 1) % keyCnt;
     }
 
@@ -128,7 +129,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         if (isEmpty()) {
             return null;
         }
-        Entry<K, QueueValue<V>> entry = deque.get(head);
+        Entry<K, QueueValue<V>> entry = deque.poll();
         head = (head + 1) % keyCnt;
         return entry;
     }
@@ -137,7 +138,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         return entryKeyMap;
     }
 
-    public AtomicReferenceArray<Entry<K, QueueValue<V>>> getDeque() {
+    public Deque<Entry<K, QueueValue<V>>> getDeque() {
         return deque;
     }
     public int getHead() {

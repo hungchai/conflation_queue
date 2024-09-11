@@ -7,6 +7,7 @@ import util.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -49,14 +50,14 @@ class ConflatingQueueImplTest {
             assertMap.put(kv.getKey(), kv.getValue());
         }
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        AtomicReferenceArray<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
+        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
         assertEquals(assertMap.size(), k.size());
-        assertEquals(assertMap.size(), d.length());
-        assert d.get(0) != null;
-        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.get(0)).getKey());
-        assert d.get(d.length()-1) != null;
-        assertEquals(assertLastKey,  ((Entry<?, ?>)d.get(d.length()-1)).getKey());
+        assertEquals(assertMap.size(), d.size());
+        assert d.peek() != null;
+        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
+        assert d.peekLast() != null;
+        assertEquals(assertLastKey,  ((Entry<?, ?>)d.peekLast()).getKey());
 
         for (int j = 0; j < k.size(); j++) {
             try {
@@ -70,14 +71,14 @@ class ConflatingQueueImplTest {
                 Logger.error(e.getMessage(), e);
             }
         }
-        Assertions.assertTrue(conflationQueue.getHead()-conflationQueue.getTail() == 0);
+        Assertions.assertTrue(d.isEmpty());
     }
 
 
     @Test
     void offerTakeConcurrent() throws InterruptedException {
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        AtomicReferenceArray<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
+        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
         final List<String> keys = new ArrayList<>(keyCount + 1);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
