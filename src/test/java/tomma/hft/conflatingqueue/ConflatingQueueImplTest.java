@@ -20,13 +20,11 @@ class ConflatingQueueImplTest {
 
     @BeforeEach
     public void init() {
-
+        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(TOTAL));
     }
 
     @Test
     void offer() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(TOTAL));
-
         final List<String> keys = new ArrayList<>(keyCount + 1);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         keys.add(END_KEY);
@@ -78,7 +76,6 @@ class ConflatingQueueImplTest {
 
     @Test
     void offerTakeConcurrent() throws InterruptedException {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(TOTAL));
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
         AtomicReferenceArray<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
@@ -98,7 +95,7 @@ class ConflatingQueueImplTest {
                 kv.setValue(i);
                 assertMap.put(kv.getKey(), kv.getValue());
                 conflationQueue.offer(kv);
-                if (i % 100_000_000 == 0) {
+                if (i % 1_000_000 == 0) {
                     Logger.info("p: " + kv);
                 }
                 if (i == 0) assertFirstKey.set(key);
@@ -121,7 +118,7 @@ class ConflatingQueueImplTest {
                     queueValue = conflationQueue.take();
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
 //                    Logger.info("d " + d.size());
-                    if (i % 100_000_000 == 0) {
+                    if (i % 1_000_000 == 0) {
                         Logger.info("c: " + kv);
                     }
                     if (queueValue.getKey().equals(END_KEY)) {
