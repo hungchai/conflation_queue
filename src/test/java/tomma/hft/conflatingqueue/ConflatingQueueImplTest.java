@@ -15,17 +15,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
-    private static final long TOTAL = 10_000_000;
+    private static final long TOTAL = 100_000_000;
     final int keyCount = 2 * 5000;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
     public void init() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(TOTAL));
+        conflationQueue = new ConflatingQueueImpl<>(keyCount+1, Math.toIntExact(keyCount+1));
     }
 
     @Test
-    void offer() {
+    void offerThenTake() {
         final List<String> keys = new ArrayList<>(keyCount + 1);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         keys.add(END_KEY);
