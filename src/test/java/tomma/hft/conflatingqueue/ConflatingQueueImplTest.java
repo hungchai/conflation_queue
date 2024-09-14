@@ -16,17 +16,17 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
     private static final long TOTAL = 100_000_000;
-    final int keyCount = 2 * 5000;
+    final int keyCount = (2 * 5000) +1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
     public void init() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount+1, Math.toIntExact(keyCount+1));
+        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(keyCount * 5));
     }
 
     @Test
     void offerThenTake() {
-        final List<String> keys = new ArrayList<>(keyCount + 1);
+        final List<String> keys = new ArrayList<>(keyCount);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         keys.add(END_KEY);
         final Random rnd = new Random();
@@ -80,12 +80,13 @@ class ConflatingQueueImplTest {
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
         Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
-        final List<String> keys = new ArrayList<>(keyCount + 1);
+        final List<String> keys = new ArrayList<>(keyCount);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         final Random rnd = new Random();
         QueueKeyValue<String, Long> kv = new QueueKeyValue<>("NaN", 0L);
 
         Map<String, Long> assertMap = new ConcurrentHashMap<>();
+        Map<String, Long> assertConsumerMap = new ConcurrentHashMap<>();
         AtomicReference<String> assertFirstKey = new AtomicReference<>("Nan");
         AtomicReference<String> assertLastKey = new AtomicReference<>("Nan");
         final Thread producer = new Thread(() -> {
@@ -122,6 +123,7 @@ class ConflatingQueueImplTest {
                     if (i % 1_000_000 == 0) {
                         Logger.info("c: " + kv);
                     }
+                    assertConsumerMap.put(queueValue.getKey(), queueValue.getValue());
                     if (queueValue.getKey().equals(END_KEY)) {
                         Thread.currentThread().interrupt();
                         break;
