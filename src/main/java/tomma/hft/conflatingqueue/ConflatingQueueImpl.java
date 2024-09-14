@@ -44,8 +44,6 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             final V old;
             try {
                 if (oldValue.isNotInQueue()) {
-                    old = oldValue.release();
-                    add = value;
                     newValue.confirm();
                     deque.add(entry);
 
