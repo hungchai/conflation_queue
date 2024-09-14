@@ -120,10 +120,13 @@ class ConflatingQueueImplTest {
                     queueValue = conflationQueue.take();
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
 //                    Logger.info("d " + d.size());
+                    if (queueValue.getValue() == null)
+                        assertConsumerMap.put(
+                                queueValue.getKey(),
+                                queueValue.getValue());
                     if (i % 1_000_000 == 0) {
-                        Logger.info("c: " + kv);
+                        Logger.info("c: " + queueValue);
                     }
-                    assertConsumerMap.put(queueValue.getKey(), queueValue.getValue());
                     if (queueValue.getKey().equals(END_KEY)) {
                         Thread.currentThread().interrupt();
                         break;
