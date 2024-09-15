@@ -97,7 +97,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
                     Logger.error("unknown exception",ex);
                 }
             }
-            while (entry == null);
+            while (entry == null || entry.priceValue.get().state != QueueValue.State.CONFIRMED);
 
 //            final QueueValue<V> exchangeValue = priceValueTake.initalizeWithUnused(null);
 //            final QueueValue<V> polledValue = entry.priceValue.getAndSet(exchangeValue);
