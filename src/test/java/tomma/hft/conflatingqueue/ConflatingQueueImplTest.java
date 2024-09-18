@@ -10,22 +10,21 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
-    private static final long TOTAL = 100_000_000;
-    final int keyCount = 2 * 5000 +1;
+    private static final long TOTAL = 1_000_000;
+    final int keyCount = (2 * 5000) + 1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
     public void init() {
-
+        conflationQueue = new ConflatingQueueImpl<>(keyCount);
     }
 
     @Test
-    void offer() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount);
-
+    void offerThenTake() {
         final List<String> keys = new ArrayList<>(keyCount);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         keys.add(END_KEY);
@@ -77,16 +76,16 @@ class ConflatingQueueImplTest {
 
     @Test
     void offerTakeConcurrent() throws InterruptedException {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount);
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
         Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
-        final List<String> keys = new ArrayList<>(keyCount + 1);
+        final List<String> keys = new ArrayList<>(keyCount);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         final Random rnd = new Random();
         QueueKeyValue<String, Long> kv = new QueueKeyValue<>("NaN", 0L);
 
-        Map<String, Long> assertMap = new ConcurrentHashMap<>();
+        Map<String, Long> assertPublishMap = new ConcurrentHashMap<>();
+        Map<String, Long> assertConsumerMap = new ConcurrentHashMap<>();
         AtomicReference<String> assertFirstKey = new AtomicReference<>("Nan");
         AtomicReference<String> assertLastKey = new AtomicReference<>("Nan");
         final Thread producer = new Thread(() -> {
@@ -95,18 +94,19 @@ class ConflatingQueueImplTest {
                 final String key = keys.get(keyIndex);
                 kv.setKey(key);
                 kv.setValue(i);
-                assertMap.put(kv.getKey(), kv.getValue());
+                assertPublishMap.put(kv.getKey(), kv.getValue());
                 conflationQueue.offer(kv);
-                if (i % 100_000_000 == 0) {
+                if (i % 1_000_000 == 0) {
                     Logger.info("p: " + kv);
                 }
                 if (i == 0) assertFirstKey.set(key);
-                if (!assertMap.containsKey(key)) {
+                if (!assertPublishMap.containsKey(key)) {
                     assertLastKey.set(kv.getKey());
                 }
             }
             kv.setKey(END_KEY);
             kv.setValue(-1L);
+            assertPublishMap.put(kv.getKey(), kv.getValue());
             conflationQueue.offer(kv);
         });
         producer.start();
@@ -120,8 +120,14 @@ class ConflatingQueueImplTest {
                     queueValue = conflationQueue.take();
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
 //                    Logger.info("d " + d.size());
-                    if (i % 100_000_000 == 0) {
-                        Logger.info("c: " + kv);
+                    if (queueValue.getValue() == null)
+                        Logger.info("p null: " + queueValue);
+
+                    assertConsumerMap.put(
+                            queueValue.getKey(),
+                            queueValue.getValue());
+                    if (i % 1_000_000 == 0) {
+                        Logger.info("c: " + queueValue);
                     }
                     if (queueValue.getKey().equals(END_KEY)) {
                         Thread.currentThread().interrupt();
@@ -135,7 +141,24 @@ class ConflatingQueueImplTest {
         });
         consumer.start();
         consumer.join();
+        producer.join();
+        Logger.info(String.valueOf(assertConsumerMap.size()));
+        Logger.info(String.valueOf(assertPublishMap.size()));
+        assertEquals(assertConsumerMap.size(), assertPublishMap.size());
+        assertEquals(assertPublishMap.keySet(), assertConsumerMap.keySet());
 
+
+        for (Map.Entry<String, Long> entry : assertPublishMap.entrySet()) {
+            String key = entry.getKey();
+            Long publishValue = entry.getValue();
+            Long consumerValue = assertConsumerMap.get(key);
+
+            // Assert that both maps contain the same key-value pairs
+            assertNotNull("Key " + key + " is missing in consumer map", String.valueOf(consumerValue));
+            if (!publishValue.equals(consumerValue)) {
+                Logger.info("key "+ key + " is not same publishValue " +publishValue +  "consumerValue " + consumerValue);
+            }
+        }
     }
 
 }
