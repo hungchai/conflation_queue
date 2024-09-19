@@ -98,9 +98,9 @@ class ConflatingQueueImplTest {
                 kv.setValue(i);
                 assertPublishMap.put(kv.getKey(), kv.getValue());
                 conflationQueue.offer(kv);
-                if (i % 10_000 == 0) {
-                    Logger.info("p: " + kv);
-                }
+//                if (i % 10_000 == 0) {
+//                    Logger.info("p: " + kv);
+//                }
                 if (i == 0) assertFirstKey.set(key);
                 if (!assertPublishMap.containsKey(key)) {
                     assertLastKey.set(kv.getKey());
@@ -128,9 +128,9 @@ class ConflatingQueueImplTest {
                     assertConsumerMap.put(
                             queueValue.getKey(),
                             queueValue.getValue());
-                    if (i % 10_000 == 0) {
-                        Logger.info("c: " + queueValue);
-                    }
+//                    if (i % 10_000 == 0) {
+//                        Logger.info("c: " + queueValue);
+//                    }
                     if (queueValue.getKey().equals(END_KEY)) {
                         Thread.currentThread().interrupt();
                         break;
@@ -162,6 +162,7 @@ class ConflatingQueueImplTest {
                 Logger.info("key "+ key + " is not same publishValue " +publishValue +  "consumerValue " + consumerValue);
             }
         }
+        assertEquals(assertPublishMap, assertConsumerMap);
     }
 
 }
