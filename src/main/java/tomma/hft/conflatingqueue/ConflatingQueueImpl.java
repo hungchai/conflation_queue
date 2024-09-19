@@ -2,6 +2,7 @@ package tomma.hft.conflatingqueue;
 
 
 import sun.misc.Contended;
+import util.Logger;
 
 import java.util.Deque;
 import java.util.Map;
@@ -9,10 +10,6 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReferenceArray;
-
-import util.Logger;
 
 public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 

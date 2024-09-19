@@ -20,7 +20,7 @@ class ConflatingQueueImplTest {
 
     @BeforeEach
     public void init() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount, 100_000);
+        conflationQueue = new ConflatingQueueImpl<>(keyCount, 1_000_000);
     }
 
     @Test
@@ -145,8 +145,6 @@ class ConflatingQueueImplTest {
         consumer.join();
         producer.join();
 
-        Logger.info(String.valueOf(assertConsumerMap.size()));
-        Logger.info(String.valueOf(assertPublishMap.size()));
         assertEquals(assertConsumerMap.size(), assertPublishMap.size());
         assertEquals(assertPublishMap.keySet(), assertConsumerMap.keySet());
 
