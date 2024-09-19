@@ -7,10 +7,9 @@ import util.Logger;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.AtomicReferenceArray;
 
+import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
@@ -33,8 +32,8 @@ class ConflatingQueueImplTest {
         final Random rnd = new Random();
         QueueKeyValue<String, Long> kv = new QueueKeyValue<>("NaN", 0L);
 
-        Map<String, Long> assertMap = new HashMap<>();
-        String assertFirstKey = "Nan";
+        Map<String, Long> assertPublishMap = new ConcurrentHashMap<>();
+        Map<String, Long> assertConsumerMap = new ConcurrentHashMap<>();        String assertFirstKey = "Nan";
         String assertLastKey = "Nan";
 
         for (long i = 0; i < TOTAL; i++) {
@@ -45,16 +44,16 @@ class ConflatingQueueImplTest {
             conflationQueue.offer(kv);
 
             if (i == 0) assertFirstKey = key;
-            if (!assertMap.containsKey(key)) {
+            if (!assertPublishMap.containsKey(key)) {
                 assertLastKey = kv.getKey();
             }
-            assertMap.put(kv.getKey(), kv.getValue());
+            assertPublishMap.put(kv.getKey(), kv.getValue());
         }
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
         Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
-        assertEquals(assertMap.size(), k.size());
-        assertEquals(assertMap.size(), d.size());
+        assertEquals(assertPublishMap.size(), k.size());
+        assertEquals(assertPublishMap.size(), d.size());
         assert d.peek() != null;
         assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
         assert d.peekLast() != null;
@@ -62,8 +61,9 @@ class ConflatingQueueImplTest {
 
         for (int j = 0; j < k.size(); j++) {
             try {
-                QueueKeyValue queueValue = (QueueKeyValue) conflationQueue.take();
-                assertEquals(assertMap.get(queueValue.getKey()),  queueValue.getValue());
+                QueueKeyValue<String, Long> queueValue = (QueueKeyValue<String, Long>) conflationQueue.take();
+                assertConsumerMap.put(queueValue.getKey(), queueValue.getValue());
+                assertEquals(assertPublishMap.get(queueValue.getKey()),  queueValue.getValue());
 
                 if (j == k.size() - 1) {
                     assertEquals(assertLastKey,  queueValue.getKey());
@@ -73,6 +73,7 @@ class ConflatingQueueImplTest {
             }
         }
         Assertions.assertTrue(d.isEmpty());
+        assertEquals(assertPublishMap, assertConsumerMap);
     }
 
 
@@ -98,8 +99,13 @@ class ConflatingQueueImplTest {
                 kv.setValue(i);
                 assertPublishMap.put(kv.getKey(), kv.getValue());
                 conflationQueue.offer(kv);
-                if (i % 1_000_000 == 0) {
+                if (i % 10_000 == 0) {
                     Logger.info("p: " + kv);
+                    try {
+                        sleep(10);
+                    } catch (InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
                 }
                 if (i == 0) assertFirstKey.set(key);
                 if (!assertPublishMap.containsKey(key)) {
@@ -113,7 +119,7 @@ class ConflatingQueueImplTest {
         });
         producer.start();
 
-
+        Thread.sleep(500);
         final Thread consumer = new Thread(() -> {
             KeyValue<String, Long>  queueValue = null;
             long i = 0;
@@ -128,7 +134,7 @@ class ConflatingQueueImplTest {
                     assertConsumerMap.put(
                             queueValue.getKey(),
                             queueValue.getValue());
-                    if (i % 1_000_000 == 0) {
+                    if (i % 10_000 == 0) {
                         Logger.info("c: " + queueValue);
                     }
                     if (queueValue.getKey().equals(END_KEY)) {
@@ -144,6 +150,7 @@ class ConflatingQueueImplTest {
         consumer.start();
         consumer.join();
         producer.join();
+
         Logger.info(String.valueOf(assertConsumerMap.size()));
         Logger.info(String.valueOf(assertPublishMap.size()));
         assertEquals(assertConsumerMap.size(), assertPublishMap.size());
