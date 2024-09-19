@@ -9,19 +9,18 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
-    private static final long TOTAL = 1_000_000;
+    private static final long TOTAL = 10_000_000;
     final int keyCount = (2 * 5000) + 1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
     public void init() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount, Math.toIntExact(TOTAL));
+        conflationQueue = new ConflatingQueueImpl<>(keyCount, 100_000);
     }
 
     @Test
@@ -101,11 +100,6 @@ class ConflatingQueueImplTest {
                 conflationQueue.offer(kv);
                 if (i % 10_000 == 0) {
                     Logger.info("p: " + kv);
-                    try {
-                        sleep(10);
-                    } catch (InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
                 }
                 if (i == 0) assertFirstKey.set(key);
                 if (!assertPublishMap.containsKey(key)) {

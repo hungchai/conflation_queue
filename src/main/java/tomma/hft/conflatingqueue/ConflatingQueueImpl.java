@@ -8,6 +8,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 import util.Logger;
@@ -32,7 +34,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
     // Pool for reusable entries and QueueValues
     private final EntryPool<K, V> entryPool;
-    private final QueueValuePool<V> queueValuePool;
+//    private final QueueValuePool<V> queueValuePool;
 
     ConflatingQueueImpl(int keyCnt, int capacity) {
         this.capacity = capacity;
@@ -41,7 +43,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         deque = new ConcurrentLinkedDeque<>();
         // Initialize pools
         this.entryPool = new EntryPool<>(capacity);
-        this.queueValuePool = new QueueValuePool<>(capacity);
+//        this.queueValuePool = new QueueValuePool<>(capacity);
     }
 
     @Override
@@ -52,24 +54,27 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             Objects.requireNonNull(keyValue.getValue());
             K conflationKey = keyValue.getKey();
             V value = keyValue.getValue();
-            final Entry<K, QueueValue<V>> entry = entryKeyMap.computeIfAbsent(conflationKey, k -> this.entryPool.getOrCreateEntry(k));
+//            final Entry<K, QueueValue<V>> entry = entryKeyMap.computeIfAbsent(conflationKey, k -> this.entryPool.getOrCreateEntry(k));
+            final Entry<K, QueueValue<V>> entry = entryKeyMap.computeIfAbsent(conflationKey, k -> new Entry<>(k, new QueueValue<V>()));
             final QueueValue<V> newValue = priceValueOffer.initializeWithUnconfirmed(value);
             final QueueValue<V> oldValue = entry.priceValue.getAndSet(newValue);
             final V add;
             final V old;
             try {
                 if (oldValue.isNotInQueue()) {
+                    old = oldValue.awaitAndRelease();
                     newValue.confirm();
                     addToDeque(entry);
                 } else {
                     old = oldValue.awaitAndRelease();
                     try {
                         add = value;
+                        newValue.confirmWith(add);
                     } catch (final Throwable t) {
                         newValue.confirmWith(old);
                         throw t;
                     }
-                    newValue.confirmWith(add);
+//                    newValue.confirmWith(add);
                 }
             } finally {
                 priceValueOffer = oldValue;
@@ -119,7 +124,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     private void addToDeque(Entry<K, QueueValue<V>> entry) {
         // Set the entry in the AtomicReferenceArray at the tail position
         deque.add(entry);
-        tail = (tail + 1) % keyCnt;
+//        tail = (tail + 1) % keyCnt;
     }
 
     private Entry<K, QueueValue<V>> pollFromDeque() {
@@ -127,7 +132,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             return null;
         }
         Entry<K, QueueValue<V>> entry = deque.poll();
-        head = (head + 1) % keyCnt;
+//        head = (head + 1) % keyCnt;
         return entry;
     }
 
@@ -202,39 +207,57 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
     }
 
-    static class QueueValuePool<V> {
-        private final QueueValue<V>[] pool;
-        private int index = 0;
-
-        QueueValuePool(int size) {
-            pool = new QueueValue[size];
-            for (int i = 0; i < size; i++) {
-                pool[i] = new QueueValue<>();
-            }
-        }
-
-        QueueValue<V> getOrCreateQueueValue() {
-            return pool[index++ % pool.length];
-        }
-    }
+//    static class QueueValuePool<V> {
+//        private final QueueValue<V>[] pool;
+//        private AtomicInteger index = new AtomicInteger(0);
+//
+//        QueueValuePool(int size) {
+//            pool = new QueueValue[size];
+////            for (int i = 0; i < size; i++) {
+////                pool[i] = new QueueValue<>();
+////            }
+//        }
+//
+//        QueueValue<V> getOrCreateQueueValue() {
+//            int poolIndex = index.incrementAndGet() % pool.length;
+//            if (pool[poolIndex] == null) {
+//                pool[poolIndex] = new QueueValue<>();
+//            }
+//            return pool[poolIndex];
+//        }
+//    }
 
     // Pool for reusable Entry objects to avoid GC
     static class EntryPool<K,V> {
         private final Entry<K, QueueValue<V>>[] pool;
-        private int index = 0;
+        private AtomicInteger index = new AtomicInteger(0);
 
         @SuppressWarnings("unchecked")
         EntryPool(int size) {
             pool = new Entry[size];
+            for (int i = 0; i < size; i++) {
+                pool[i] = (Entry<K, QueueValue<V>>) new Entry<>(new Object(), new QueueValue<V>());
+            }
         }
 
         Entry<K, QueueValue<V>> getOrCreateEntry(K key) {
-            int poolIndex = index % pool.length;
-            if (pool[poolIndex] == null) {
-                pool[poolIndex] = new Entry<>(key, new QueueValue<V>());
+            int poolIndex = getNextIndex() % pool.length;
+//            if (pool[poolIndex] == null) {
+//                pool[poolIndex] = new Entry<>(key, new QueueValue<V>());
+//            }
+            Entry<K, QueueValue<V>> entry = pool[poolIndex];
+            entry.setKey(key);
+            return entry;
+        }
+
+        private int getNextIndex() {
+            while (true) {
+                int current = index.get();
+                int next = current >= Integer.MAX_VALUE - pool.length ? 0 : current + 1;
+                if (index.compareAndSet(current, next)) {
+                    return current;
+                }
             }
-            index++;
-            return pool[poolIndex];
         }
     }
 }
