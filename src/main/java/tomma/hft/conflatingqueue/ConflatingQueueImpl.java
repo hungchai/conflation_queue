@@ -44,6 +44,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
             final V old;
             try {
                 if (oldValue.isNotInQueue()) {
+                    old = oldValue.awaitAndRelease();
                     newValue.confirm();
                     deque.add(entry);
 
@@ -51,11 +52,11 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
                     old = oldValue.awaitAndRelease();
                     try {
                         add = value;
+                        newValue.confirmWith(add);
                     } catch (final Throwable t) {
                         newValue.confirmWith(old);
                         throw t;
                     }
-                    newValue.confirmWith(add);
                 }
             } finally {
                 priceValueOffer = oldValue;
