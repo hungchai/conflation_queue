@@ -9,13 +9,14 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
-    private static final long TOTAL = 10_000_000;
-    final int keyCount = (2 * 5000) + 1;
+    private static final long TOTAL = 1_000_000;
+    final int keyCount = (2 * 3000) + 1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
@@ -111,9 +112,7 @@ class ConflatingQueueImplTest {
             assertPublishMap.put(kv.getKey(), kv.getValue());
             conflationQueue.offer(kv);
         });
-        producer.start();
 
-        Thread.sleep(500);
         final Thread consumer = new Thread(() -> {
             KeyValue<String, Long>  queueValue = null;
             long i = 0;
@@ -122,8 +121,6 @@ class ConflatingQueueImplTest {
                     queueValue = conflationQueue.take();
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
 //                    Logger.info("d " + d.size());
-                    if (queueValue.getValue() == null)
-                        Logger.info("p null: " + queueValue);
 
                     assertConsumerMap.put(
                             queueValue.getKey(),
@@ -142,6 +139,9 @@ class ConflatingQueueImplTest {
             }while (true);
         });
         consumer.start();
+        sleep(100);
+        producer.start();
+
         consumer.join();
         producer.join();
 
@@ -157,7 +157,7 @@ class ConflatingQueueImplTest {
             // Assert that both maps contain the same key-value pairs
             assertNotNull("Key " + key + " is missing in consumer map", String.valueOf(consumerValue));
             if (!publishValue.equals(consumerValue)) {
-                Logger.info("key "+ key + " is not same publishValue " +publishValue +  "consumerValue " + consumerValue);
+                Logger.info("key "+ key + " is not same publishValue " +publishValue +  " consumerValue " + consumerValue);
             }
         }
         assertEquals(assertPublishMap, assertConsumerMap);

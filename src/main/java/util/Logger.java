@@ -9,7 +9,9 @@ public class Logger {
 
     private static String getTimeStamp() {
         LocalDateTime now = LocalDateTime.now();
-        return now.format(DATE_TIME_FORMATTER) + String.format(".%09d", now.getNano());
+        String timestampWithoutNano = now.format(DATE_TIME_FORMATTER);
+        long nanoTime = System.nanoTime() % 1_000_000_000L; // Reduce to nanoseconds in a second
+        return timestampWithoutNano + String.format(".%09d", nanoTime);
     }
 
     public static void info(String message) {
