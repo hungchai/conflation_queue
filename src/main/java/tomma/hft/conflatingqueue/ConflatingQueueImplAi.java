@@ -50,9 +50,10 @@ public class ConflatingQueueImplAi<K, V> implements ConflatingQueue<K, V> {
         valueMap.put(key, newValue);
         try {
             if (!inDequeMap.getOrDefault(key, false)) { // If key is not in the deque
-                newValue.confirm();
-                inDequeMap.put(key, true); // Mark key as in deque
-                addToDeque(entry); // Add key to the deque
+                inDequeMap.compute(key, (k, v) -> {
+                    addToDeque(entry);
+                    return true;
+                }); // Mark key as in deque
             } else {
                 newValue.confirmWith(value); // Just update the value if key is already in the deque
             }
@@ -66,18 +67,22 @@ public class ConflatingQueueImplAi<K, V> implements ConflatingQueue<K, V> {
     @Override
     public KeyValue<K, V> take() throws InterruptedException {
         Entry<K, QueueValue<V>> entry;
+        final QueueValue<V> entryValue;
         while (true) {
             entry = pollFromDeque();
-            if (entry != null && valueMap.get(entry.key) != null) break;
+            if (entry != null && valueMap.get(entry.key) != null){
+                entryValue = valueMap.get(entry.key);
+                break;
+            }
             if (Thread.interrupted()) throw new InterruptedException();
         }
         inDequeMap.put(entry.key, false); // Mark key as not in the deque
-        final QueueValue<V> polledValue = valueMap.get(entry.key);
-        Logger.info("get 1 "+ polledValue.value);
+//        final QueueValue<V> polledValue = valueMap.get(entry.key);
+//        Logger.info("get 1 "+ entryValue.value);
 
-        final V value = polledValue.awaitAndRelease();
+        final V value = entryValue.awaitAndRelease();
         final QueueKeyValue result =  new QueueKeyValue<>(entry.key, value);
-        Logger.info("get 2 "+ result.toString());
+//        Logger.info("get 2 "+ result.toString());
         return result;
     }
 

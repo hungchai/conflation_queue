@@ -9,6 +9,7 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
@@ -36,7 +37,7 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         entryKeyMap = new ConcurrentHashMap<>(keyCnt);
         deque = new ConcurrentLinkedDeque<>();
         // Initialize pools
-        this.entryPool = new EntryPool<>(keyCnt * keyCnt);
+        this.entryPool = new EntryPool<>(keyCnt * 5);
     }
 
     @Override
@@ -51,7 +52,6 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
 
             final Entry<K, QueueValue<V>> entry = entryKeyMap.computeIfAbsent(conflationKey, k -> this.entryPool.getOrCreateEntry(k));
             final QueueValue<V> newValue = priceValueOffer.initializeWithUnconfirmed(value);
-
             final QueueValue<V> oldValue = entry.priceValue.getAndSet(newValue);
 
             if (oldValue.isNotInQueue()) {
@@ -121,38 +121,38 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
     }
 
     static class QueueValue<V> {
-        enum State {UNUSED, UNCONFIRMED, CONFIRMED}
+        enum State { UNUSED, UNCONFIRMED, CONFIRMED }
 
         private V value;
-        volatile State state;
+        private final AtomicReference<State> state;
 
         public QueueValue() {
-            this.state = State.UNUSED;
+            this.state = new AtomicReference<>(State.UNUSED);
         }
 
         QueueValue<V> initializeWithUnconfirmed(final V value) {
             this.value = Objects.requireNonNull(value);
-            this.state = State.UNCONFIRMED;
+            state.set(State.UNCONFIRMED);  // Set state atomically
             return this;
         }
 
         QueueValue<V> initializeWithUnused(final V value) {
-            this.value = value; // nulls allowed here
-            this.state = State.UNUSED;
+            this.value = value;  // nulls allowed here
+            state.set(State.UNUSED);  // Set state atomically
             return this;
         }
 
         void confirmWith(final V value) {
             this.value = value;
-            this.state = State.CONFIRMED;
+            state.set(State.CONFIRMED);  // Set state atomically
         }
 
         boolean isNotInQueue() {
-            return state == State.UNUSED;
+            return state.get() == State.UNUSED;  // Atomic state check
         }
 
         void confirm() {
-            this.state = State.CONFIRMED;
+            state.set(State.CONFIRMED);  // Set state atomically
         }
 
         V awaitAndRelease() {
@@ -161,21 +161,20 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         }
 
         State awaitFinalState() {
-            State s;
-            do {
-                s = state;
-            } while (s == State.UNCONFIRMED);
-            return s;
+            // Busy-wait until the state transitions to CONFIRMED
+            while (state.get() == State.UNCONFIRMED) {
+                // Optionally, add a small sleep to reduce CPU load if necessary
+            }
+            return state.get();
         }
 
         V release() {
             final V released = value;
-            state = State.UNUSED;
+            state.set(State.UNUSED);  // Transition to UNUSED atomically
             this.value = null;
             return released;
         }
     }
-
     // Pool for reusable Entry objects to avoid GC
     static class EntryPool<K, V> {
         private final Entry<K, QueueValue<V>>[] pool;
@@ -192,7 +191,12 @@ public class ConflatingQueueImpl<K, V> implements ConflatingQueue<K, V> {
         Entry<K, QueueValue<V>> getOrCreateEntry(K key) {
             int poolIndex = getNextIndex() % pool.length;
             Entry<K, QueueValue<V>> entry = pool[poolIndex];
-            entry.setKey(key);
+            if (entry == null) {
+                entry = new Entry<>(key, new QueueValue<V>());
+                pool[poolIndex] = entry;
+            } else {
+                entry.setKey(key);  // Reset the key for reuse
+            }
             return entry;
         }
 

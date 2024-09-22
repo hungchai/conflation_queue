@@ -139,7 +139,7 @@ class ConflatingQueueImplTest {
             }while (true);
         });
         consumer.start();
-        sleep(100);
+        sleep(500);
         producer.start();
 
         consumer.join();
