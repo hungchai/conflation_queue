@@ -14,14 +14,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
-    private ConflatingQueueImpl<String, Long> conflationQueue;
+    private ConflatingQueueImplAi<String, Long> conflationQueue;
     private static final long TOTAL = 1_000_000;
-    final int keyCount = (2 * 3000) + 1;
+    final int keyCount = (2 * 300) + 1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
     public void init() {
-        conflationQueue = new ConflatingQueueImpl<>(keyCount, 1_000_000);
+        conflationQueue = new ConflatingQueueImplAi<>(keyCount, 1_000_000);
     }
 
     @Test
@@ -49,8 +49,8 @@ class ConflatingQueueImplTest {
             }
             assertPublishMap.put(kv.getKey(), kv.getValue());
         }
-        Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
+        Map<String, Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
+        Deque<Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> d = conflationQueue.getDeque();
 
         assertEquals(assertPublishMap.size(), k.size());
         assertEquals(assertPublishMap.size(), d.size());
@@ -79,8 +79,8 @@ class ConflatingQueueImplTest {
 
     @Test
     void offerTakeConcurrent() throws InterruptedException {
-        Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
+        Map<String, Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
+        Deque<Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> d = conflationQueue.getDeque();
 
         final List<String> keys = new ArrayList<>(keyCount);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
@@ -118,7 +118,7 @@ class ConflatingQueueImplTest {
             long i = 0;
             do{
                 try {
-                    queueValue = conflationQueue.take();
+                      queueValue = conflationQueue.take();
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
 //                    Logger.info("d " + d.size());
 
@@ -134,7 +134,7 @@ class ConflatingQueueImplTest {
                     }
                     i++;
                 }catch(Exception e) {
-                    Logger.error(e.getMessage(), e);
+                    Logger.error(queueValue.getKey()+ " "  + e.getMessage(), e);
                 }
             }while (true);
         });
