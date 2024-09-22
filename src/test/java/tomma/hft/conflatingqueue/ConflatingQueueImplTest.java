@@ -16,7 +16,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 class ConflatingQueueImplTest {
     private ConflatingQueueImplAi<String, Long> conflationQueue;
     private static final long TOTAL = 1_000_000;
-    final int keyCount = (2 * 300) + 1;
+    final int keyCount = (2 * 5000) + 1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach

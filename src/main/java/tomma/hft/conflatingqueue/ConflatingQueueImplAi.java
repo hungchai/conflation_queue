@@ -68,16 +68,16 @@ public class ConflatingQueueImplAi<K, V> implements ConflatingQueue<K, V> {
         Entry<K, QueueValue<V>> entry;
         while (true) {
             entry = pollFromDeque();
-            if (entry != null &&  valueMap.get(entry.key) != null) break;
+            if (entry != null && valueMap.get(entry.key) != null) break;
             if (Thread.interrupted()) throw new InterruptedException();
         }
         inDequeMap.put(entry.key, false); // Mark key as not in the deque
         final QueueValue<V> polledValue = valueMap.get(entry.key);
-//        Logger.info("get 1 "+ polledValue.value);
+        Logger.info("get 1 "+ polledValue.value);
 
         final V value = polledValue.awaitAndRelease();
         final QueueKeyValue result =  new QueueKeyValue<>(entry.key, value);
-//        Logger.info("get 2 "+ result.toString());
+        Logger.info("get 2 "+ result.toString());
         return result;
     }
 
