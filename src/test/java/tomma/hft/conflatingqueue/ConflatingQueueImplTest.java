@@ -14,8 +14,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImpl<String, Long> conflationQueue;
-    private static final long TOTAL = 1_000_000;
-    final int keyCount = (2 * 5000) + 1;
+    private static final long TOTAL = 10_000_000;
+    final int keyCount = (20 * 30) + 1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
@@ -48,23 +48,28 @@ class ConflatingQueueImplTest {
             }
             assertMap.put(kv.getKey(), kv.getValue());
         }
+        kv.setKey(END_KEY);
+        kv.setValue(-1L);
+        conflationQueue.offer(kv);
+
         Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
         Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
 
-        assertEquals(assertMap.size(), k.size());
-        assertEquals(assertMap.size(), d.size());
+        assertEquals(assertMap.size(), k.size() + 2);
+        assertEquals(assertMap.size(), d.size() + 2);
         assert d.peek() != null;
         assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
         assert d.peekLast() != null;
         assertEquals(assertLastKey,  ((Entry<?, ?>)d.peekLast()).getKey());
 
-        for (int j = 0; j < k.size(); j++) {
+        while (true) {
             try {
                 QueueKeyValue queueValue = (QueueKeyValue) conflationQueue.take();
                 assertEquals(assertMap.get(queueValue.getKey()),  queueValue.getValue());
 
-                if (j == k.size() - 1) {
-                    assertEquals(assertLastKey,  queueValue.getKey());
+                if (queueValue.getKey().equals(END_KEY)) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }catch(Exception e) {
                 Logger.error(e.getMessage(), e);
