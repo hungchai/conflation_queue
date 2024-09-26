@@ -18,10 +18,12 @@ class ConflatingQueueImplTest {
     private static final long TOTAL = 10_000_000;
     final int keyCount = (20 * 50) + 1;
     final String END_KEY = "KEY_END";
+    private PerformanceAnalyzer performanceAnalyzer;
 
     @BeforeEach
     public void init() {
         conflationQueue = new ConflatingQueueImplAi<>(keyCount, 1_000_000);
+        performanceAnalyzer = new PerformanceAnalyzer();
     }
 
     @Test
@@ -100,7 +102,7 @@ class ConflatingQueueImplTest {
         AtomicReference<String> assertFirstKey = new AtomicReference<>("Nan");
         AtomicReference<String> assertLastKey = new AtomicReference<>("Nan");
         final Thread producer = new Thread(() -> {
-            for (long i = 0; i < TOTAL; i++) {
+            for (long i = 0; i < TOTAL * 100; i++) {
                 final int keyIndex = rnd.nextInt(keyCount);
                 final String key = keys.get(keyIndex);
                 kv.setKey(key);
