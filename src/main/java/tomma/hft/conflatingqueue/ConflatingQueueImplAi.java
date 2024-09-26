@@ -135,7 +135,6 @@ public class ConflatingQueueImplAi<K, V> implements ConflatingQueue<K, V> {
 
         V release() {
             V released = value;
-            value = null; // Release the value
             return released;
         }
     }

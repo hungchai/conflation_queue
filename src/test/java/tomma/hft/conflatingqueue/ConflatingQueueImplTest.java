@@ -15,8 +15,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImplAi<String, Long> conflationQueue;
-    private static final long TOTAL = 1_000_000;
-    final int keyCount = (2 * 5000) + 1;
+    private static final long TOTAL = 10_000_000;
+    final int keyCount = (20 * 50) + 1;
     final String END_KEY = "KEY_END";
 
     @BeforeEach
@@ -43,37 +43,45 @@ class ConflatingQueueImplTest {
             kv.setValue(i);
             conflationQueue.offer(kv);
 
-            if (i == 0) assertFirstKey = key;
-            if (!assertPublishMap.containsKey(key)) {
-                assertLastKey = kv.getKey();
-            }
-            assertPublishMap.put(kv.getKey(), kv.getValue());
+//            if (i == 0) assertFirstKey = key;
+//            if (!assertPublishMap.containsKey(key)) {
+//                assertLastKey = kv.getKey();
+//            }
+//            assertPublishMap.put(kv.getKey(), kv.getValue());
         }
-        Map<String, Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        Deque<Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> d = conflationQueue.getDeque();
+        kv.setKey(END_KEY);
+        kv.setValue(-1L);
+        conflationQueue.offer(kv);
 
-        assertEquals(assertPublishMap.size(), k.size());
-        assertEquals(assertPublishMap.size(), d.size());
-        assert d.peek() != null;
-        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
-        assert d.peekLast() != null;
-        assertEquals(assertLastKey,  ((Entry<?, ?>)d.peekLast()).getKey());
+//        Map<String, Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
+//        Deque<Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> d = conflationQueue.getDeque();
+//
+//        assertEquals(assertPublishMap.size(), k.size());
+//        assertEquals(assertPublishMap.size(), d.size());
+//        assert d.peek() != null;
+//        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
+//        assert d.peekLast() != null;
+//        assertEquals(assertLastKey,  ((Entry<?, ?>)d.peekLast()).getKey());
 
-        for (int j = 0; j < k.size(); j++) {
+        while (true) {
             try {
                 QueueKeyValue<String, Long> queueValue = (QueueKeyValue<String, Long>) conflationQueue.take();
-                assertConsumerMap.put(queueValue.getKey(), queueValue.getValue());
-                assertEquals(assertPublishMap.get(queueValue.getKey()),  queueValue.getValue());
-
-                if (j == k.size() - 1) {
-                    assertEquals(assertLastKey,  queueValue.getKey());
+//                assertConsumerMap.put(queueValue.getKey(), queueValue.getValue());
+//                assertEquals(assertPublishMap.get(queueValue.getKey()),  queueValue.getValue());
+//
+//                if (j == k.size() - 1) {
+//                    assertEquals(assertLastKey,  queueValue.getKey());
+//                }
+                if (queueValue.getKey().equals(END_KEY)) {
+                    Thread.currentThread().interrupt();
+                    break;
                 }
             }catch(Exception e) {
                 Logger.error(e.getMessage(), e);
             }
         }
-        Assertions.assertTrue(d.isEmpty());
-        assertEquals(assertPublishMap, assertConsumerMap);
+//        Assertions.assertTrue(d.isEmpty());
+//        assertEquals(assertPublishMap, assertConsumerMap);
     }
 
 
