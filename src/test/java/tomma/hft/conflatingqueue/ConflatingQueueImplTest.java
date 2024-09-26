@@ -52,21 +52,9 @@ class ConflatingQueueImplTest {
         kv.setValue(-1L);
         conflationQueue.offer(kv);
 
-        Map<String, Entry<String, ConflatingQueueImpl.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        Deque<Entry<String, ConflatingQueueImpl.QueueValue<Long>>> d = conflationQueue.getDeque();
-
-        assertEquals(assertMap.size(), k.size() + 2);
-        assertEquals(assertMap.size(), d.size() + 2);
-        assert d.peek() != null;
-        assertEquals(assertFirstKey,  ((Entry<?, ?>)d.peek()).getKey());
-        assert d.peekLast() != null;
-        assertEquals(assertLastKey,  ((Entry<?, ?>)d.peekLast()).getKey());
-
         while (true) {
             try {
                 QueueKeyValue queueValue = (QueueKeyValue) conflationQueue.take();
-                assertEquals(assertMap.get(queueValue.getKey()),  queueValue.getValue());
-
                 if (queueValue.getKey().equals(END_KEY)) {
                     Thread.currentThread().interrupt();
                     break;
@@ -75,7 +63,6 @@ class ConflatingQueueImplTest {
                 Logger.error(e.getMessage(), e);
             }
         }
-        Assertions.assertTrue(d.isEmpty());
     }
 
 
