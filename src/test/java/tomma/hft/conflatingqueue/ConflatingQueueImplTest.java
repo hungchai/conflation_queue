@@ -15,15 +15,17 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
     private ConflatingQueueImplAi<String, Long> conflationQueue;
-    private static final long TOTAL = 10_000_000;
+    private static final long TOTAL = 1_000_000 * 100;
     final int keyCount = (20 * 50) + 1;
     final String END_KEY = "KEY_END";
-    private PerformanceAnalyzer performanceAnalyzer;
+    private PerformanceAnalyzer performanceAnalyzerProd;
+    private PerformanceAnalyzer performanceAnalyzerConsum;
 
     @BeforeEach
     public void init() {
         conflationQueue = new ConflatingQueueImplAi<>(keyCount, 1_000_000);
-        performanceAnalyzer = new PerformanceAnalyzer();
+        performanceAnalyzerProd = new PerformanceAnalyzer();
+        performanceAnalyzerConsum = new PerformanceAnalyzer();
     }
 
     @Test
@@ -43,8 +45,10 @@ class ConflatingQueueImplTest {
             final String key = keys.get(keyIndex);
             kv.setKey(key);
             kv.setValue(i);
+            long startTime = System.nanoTime();
             conflationQueue.offer(kv);
-
+            long endTime = System.nanoTime();
+            performanceAnalyzerProd.recordExecutionTime(endTime - startTime);
 //            if (i == 0) assertFirstKey = key;
 //            if (!assertPublishMap.containsKey(key)) {
 //                assertLastKey = kv.getKey();
@@ -67,7 +71,11 @@ class ConflatingQueueImplTest {
 
         while (true) {
             try {
+                long startTime = System.nanoTime();
                 QueueKeyValue<String, Long> queueValue = (QueueKeyValue<String, Long>) conflationQueue.take();
+                long endTime = System.nanoTime();
+                performanceAnalyzerConsum.recordExecutionTime(endTime - startTime);
+
 //                assertConsumerMap.put(queueValue.getKey(), queueValue.getValue());
 //                assertEquals(assertPublishMap.get(queueValue.getKey()),  queueValue.getValue());
 //
@@ -82,6 +90,10 @@ class ConflatingQueueImplTest {
                 Logger.error(e.getMessage(), e);
             }
         }
+
+        performanceAnalyzerProd.printHistogram();
+        performanceAnalyzerConsum.printHistogram();
+
 //        Assertions.assertTrue(d.isEmpty());
 //        assertEquals(assertPublishMap, assertConsumerMap);
     }
@@ -102,13 +114,17 @@ class ConflatingQueueImplTest {
         AtomicReference<String> assertFirstKey = new AtomicReference<>("Nan");
         AtomicReference<String> assertLastKey = new AtomicReference<>("Nan");
         final Thread producer = new Thread(() -> {
-            for (long i = 0; i < TOTAL * 100; i++) {
+            for (long i = 0; i < TOTAL; i++) {
                 final int keyIndex = rnd.nextInt(keyCount);
                 final String key = keys.get(keyIndex);
                 kv.setKey(key);
                 kv.setValue(i);
                 assertPublishMap.put(kv.getKey(), kv.getValue());
+                long startTime = System.nanoTime();
                 conflationQueue.offer(kv);
+                long endTime = System.nanoTime();
+                performanceAnalyzerProd.recordExecutionTime(endTime - startTime);
+
 //                if (i % 10_000 == 0) {
 //                    Logger.info("p: " + kv);
 //                }
@@ -128,7 +144,11 @@ class ConflatingQueueImplTest {
             long i = 0;
             do{
                 try {
-                      queueValue = conflationQueue.take();
+                    long startTime = System.nanoTime();
+                    queueValue = conflationQueue.take();
+                    long endTime = System.nanoTime();
+                    performanceAnalyzerConsum.recordExecutionTime(endTime - startTime);
+
 //                    assertEquals(assertMap.get(queueValue.getKey()), queueValue.getValue());
 //                    Logger.info("d " + d.size());
 
@@ -154,6 +174,9 @@ class ConflatingQueueImplTest {
 
         consumer.join();
         producer.join();
+
+        performanceAnalyzerProd.printHistogram();
+        performanceAnalyzerConsum.printHistogram();
 
         assertEquals(assertConsumerMap.size(), assertPublishMap.size());
         assertEquals(assertPublishMap.keySet(), assertConsumerMap.keySet());
