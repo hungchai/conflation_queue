@@ -54,11 +54,10 @@ public class ConflatingQueueImplAi<K, V> implements ConflatingQueue<K, V> {
                     addToDeque(entry);
                     return true;
                 }); // Mark key as in deque
-            } else {
-                newValue.confirmWith(value); // Just update the value if key is already in the deque
             }
         } finally {
             priceValueOffer = entry.priceValue.getAndSet(newValue); // Pool management
+//            priceValueOffer = newValue ; // Pool management
         }
 
         return true;
