@@ -1,6 +1,5 @@
 package tomma.hft.conflatingqueue;
 
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import util.Logger;
@@ -14,7 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
-    private ConflatingQueueImplAi<String, Long> conflationQueue;
+    private ConflatingQueue<String, Long> conflationQueue;
     private static final long TOTAL = 1_000_000 * 1;
     final int keyCount = (20 * 50) + 1;
     final String END_KEY = "KEY_END";
@@ -23,7 +22,7 @@ class ConflatingQueueImplTest {
 
     @BeforeEach
     public void init() {
-        conflationQueue = new ConflatingQueueImplAi<>(keyCount, 1_000_000);
+        conflationQueue = new ConflatingQueueImplv1<>(keyCount, 1_000_000);
         performanceAnalyzerProd = new PerformanceAnalyzer();
         performanceAnalyzerConsum = new PerformanceAnalyzer();
     }
@@ -101,9 +100,6 @@ class ConflatingQueueImplTest {
 
     @Test
     void offerTakeConcurrent() throws InterruptedException {
-        Map<String, Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> k = conflationQueue.getEntryKeyMap();
-        Deque<Entry<String, ConflatingQueueImplAi.QueueValue<Long>>> d = conflationQueue.getDeque();
-
         final List<String> keys = new ArrayList<>(keyCount);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         final Random rnd = new Random();
