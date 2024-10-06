@@ -4,6 +4,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import util.Logger;
 
+import java.time.DateTimeException;
+import java.time.Instant;
+import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
@@ -14,8 +17,8 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class ConflatingQueueImplTest {
     private ConflatingQueue<String, Long> conflationQueue;
-    private static final long TOTAL = 1_000_000 * 1;
-    final int keyCount = (20 * 50) + 1;
+    private static long TOTAL = 1_000_000 * 1;
+    int keyCount = (20 * 50) + 1;
     final String END_KEY = "KEY_END";
     private PerformanceAnalyzer performanceAnalyzerProd;
     private PerformanceAnalyzer performanceAnalyzerConsum;
@@ -97,9 +100,25 @@ class ConflatingQueueImplTest {
 //        assertEquals(assertPublishMap, assertConsumerMap);
     }
 
+    @Test
+    void offerTakeConcurrent5MItems() throws InterruptedException {
+        TOTAL = 1_000_000 * 5;
+        offerTakeConcurrent(null );
+    }
 
     @Test
-    void offerTakeConcurrent() throws InterruptedException {
+    void offerTakeConcurrent5min() throws InterruptedException {
+        TOTAL = 1_000_000 * 5;
+        offerTakeConcurrent(60 * 10);
+    }
+
+    void offerTakeConcurrent(Integer endAfterSec) throws InterruptedException {
+        Instant endDt;
+        if (endAfterSec != null) {
+            endDt = Instant.now().plusSeconds(endAfterSec);
+        } else {
+            endDt = null;
+        }
         final List<String> keys = new ArrayList<>(keyCount);
         for (int i = 0; i < keyCount; i++) keys.add("KEY_" + i);
         final Random rnd = new Random();
@@ -109,31 +128,59 @@ class ConflatingQueueImplTest {
         Map<String, Long> assertConsumerMap = new ConcurrentHashMap<>();
         AtomicReference<String> assertFirstKey = new AtomicReference<>("Nan");
         AtomicReference<String> assertLastKey = new AtomicReference<>("Nan");
-        final Thread producer = new Thread(() -> {
-            for (long i = 0; i < TOTAL; i++) {
-                final int keyIndex = rnd.nextInt(keyCount);
-                final String key = keys.get(keyIndex);
-                kv.setKey(key);
-                kv.setValue(i);
-                assertPublishMap.put(kv.getKey(), kv.getValue());
-                long startTime = System.nanoTime();
-                conflationQueue.offer(kv);
-                long endTime = System.nanoTime();
-                performanceAnalyzerProd.recordExecutionTime(endTime - startTime);
-
-//                if (i % 10_000 == 0) {
-//                    Logger.info("p: " + kv);
-//                }
-                if (i == 0) assertFirstKey.set(key);
-                if (!assertPublishMap.containsKey(key)) {
-                    assertLastKey.set(kv.getKey());
+        Thread producer = null;
+        if (endDt != null) {
+            producer = new Thread(() -> {
+                long i = 0;
+                while (Instant.now().isBefore(endDt)) {
+                    final int keyIndex = rnd.nextInt(keyCount);
+                    final String key = keys.get(keyIndex);
+                    kv.setKey(key);
+                    kv.setValue(i);
+                    assertPublishMap.put(kv.getKey(), kv.getValue());
+                    long startTime = System.nanoTime();
+                    conflationQueue.offer(kv);
+                    long endTime = System.nanoTime();
+                    performanceAnalyzerProd.recordExecutionTime(endTime - startTime);
+                    if (i == 0) assertFirstKey.set(key);
+                    if (!assertPublishMap.containsKey(key)) {
+                        assertLastKey.set(kv.getKey());
+                    }
+                    i++;
+                    if (i > TOTAL) {
+                        i = 0;
+                    }
                 }
-            }
-            kv.setKey(END_KEY);
-            kv.setValue(-1L);
-            assertPublishMap.put(kv.getKey(), kv.getValue());
-            conflationQueue.offer(kv);
-        });
+                    kv.setKey(END_KEY);
+                    kv.setValue(-1L);
+                    assertPublishMap.put(kv.getKey(), kv.getValue());
+                    conflationQueue.offer(kv);
+                });
+
+        }
+        else {
+            producer = new Thread(() -> {
+                for (long i = 0; i < TOTAL; i++) {
+                    final int keyIndex = rnd.nextInt(keyCount);
+                    final String key = keys.get(keyIndex);
+                    kv.setKey(key);
+                    kv.setValue(i);
+                    assertPublishMap.put(kv.getKey(), kv.getValue());
+                    long startTime = System.nanoTime();
+                    conflationQueue.offer(kv);
+                    long endTime = System.nanoTime();
+                    performanceAnalyzerProd.recordExecutionTime(endTime - startTime);
+                    if (i == 0) assertFirstKey.set(key);
+                    if (!assertPublishMap.containsKey(key)) {
+                        assertLastKey.set(kv.getKey());
+                    }
+                }
+                kv.setKey(END_KEY);
+                kv.setValue(-1L);
+                assertPublishMap.put(kv.getKey(), kv.getValue());
+                conflationQueue.offer(kv);
+            });
+        }
 
         final Thread consumer = new Thread(() -> {
             KeyValue<String, Long>  queueValue = null;
