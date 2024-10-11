@@ -4,12 +4,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import util.Logger;
 
-import java.time.DateTimeException;
 import java.time.Instant;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.LockSupport;
 
 import static java.lang.Thread.sleep;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -98,6 +99,50 @@ class ConflatingQueueImplTest {
 
 //        Assertions.assertTrue(d.isEmpty());
 //        assertEquals(assertPublishMap, assertConsumerMap);
+    }
+
+//     * 		1. The consumer calls take(), and blocks as the queue is empty.
+//            * 		2. The producer calls offer(@{@link KeyValue}) with key = BTCUSD, value = 7000.  The consumer unblocks and receives
+// * 		   the @{@link KeyValue}.
+//            * 		3. The producer calls offer(@{@link KeyValue}) with key = BTCUSD, value = 7001
+//            * 		4. The producer calls offer(@{@link KeyValue}) with key = ETHUSD, value = 250
+//            * 		5. The producer calls offer(@{@link KeyValue}) with key = BTCUSD, value = 7002, which replaces the queued price 7001
+//            * 		6. The consumer calls take() three times.  The consumer first receives key = BTCUSD, value = 7002, then receives
+// * 		   key = ETHUSD, value = 250, then blocks as the queue is empty.
+    @Test
+    void bitmexTest() throws InterruptedException {
+        ExecutorService executor = Executors.newFixedThreadPool(1);
+
+        AtomicReference<KeyValue<String, Long>> queueValueF = new AtomicReference();
+        Runnable consumerTask = () -> {
+            try {
+                queueValueF.set(conflationQueue.take());
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
+        };
+        executor.submit(consumerTask);
+        LockSupport.parkUntil(System.currentTimeMillis() + 5000);
+        conflationQueue.offer(new QueueKeyValue("BTCUSD", 7000L));
+        LockSupport.parkNanos(1000000);
+        assertEquals("BTCUSD", queueValueF.get().getKey() );
+        assertEquals(7000L,  queueValueF.get().getValue());
+
+        conflationQueue.offer(new QueueKeyValue("BTCUSD", 7001L));
+        conflationQueue.offer(new QueueKeyValue("ETHUSD", 250L));
+        conflationQueue.offer(new QueueKeyValue("BTCUSD", 7002L));
+
+
+        KeyValue<String, Long> queueValue = conflationQueue.take();
+        assertEquals("BTCUSD", queueValue.getKey());
+        assertEquals(7002,queueValue.getValue());
+
+        queueValue = conflationQueue.take();
+        assertEquals("ETHUSD", queueValue.getKey());
+        assertEquals(250, queueValue.getValue());
+        executor.submit(consumerTask);
+        LockSupport.parkUntil(System.currentTimeMillis() + 5000);
+
     }
 
     @Test
