@@ -124,7 +124,7 @@ class ConflatingQueueImplTest {
         executor.submit(consumerTask);
         LockSupport.parkUntil(System.currentTimeMillis() + 5000);
         conflationQueue.offer(new QueueKeyValue("BTCUSD", 7000L));
-        LockSupport.parkNanos(1000000);
+        LockSupport.parkNanos(1_000_000);
         assertEquals("BTCUSD", queueValueF.get().getKey() );
         assertEquals(7000L,  queueValueF.get().getValue());
 
