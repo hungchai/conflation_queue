@@ -157,6 +157,12 @@ class ConflatingQueueImplTest {
         offerTakeConcurrent(60 * 10);
     }
 
+    @Test
+    void offerTakeConcurrent30min() throws InterruptedException {
+        TOTAL = 1_000_000 * 5;
+        offerTakeConcurrent(60 * 30);
+    }
+
     void offerTakeConcurrent(Integer endAfterSec) throws InterruptedException {
         Instant endDt;
         if (endAfterSec != null) {
