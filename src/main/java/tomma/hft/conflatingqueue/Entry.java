@@ -6,10 +6,18 @@ import java.util.concurrent.atomic.AtomicReference;
 final class Entry<K, V> {
     K key;
     final AtomicReference<V> priceValue;
+    private final Long address;
 
     Entry(final K key, final V value) {
         this.key = Objects.requireNonNull(key);
         this.priceValue = new AtomicReference<>(value);//nulls allowed for value
+        this.address = Long.parseLong(null);
+    }
+
+    Entry(final K key, final V value, long address) {
+        this.key = Objects.requireNonNull(key);
+        this.priceValue = new AtomicReference<>(value);//nulls allowed for value
+        this.address = address;
     }
 
     public K getKey() {
