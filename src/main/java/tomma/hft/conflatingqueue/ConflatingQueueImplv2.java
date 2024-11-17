@@ -2,13 +2,14 @@ package tomma.hft.conflatingqueue;
 
 
 import sun.misc.Contended;
+import sun.misc.Unsafe;
 
+import java.lang.reflect.Field;
 import java.util.Deque;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class ConflatingQueueImplv2<K, V> implements ConflatingQueue<K, V> {
 
@@ -106,9 +107,10 @@ public class ConflatingQueueImplv2<K, V> implements ConflatingQueue<K, V> {
     }
 
     // Pool for reusable Entry objects to avoid GC
+
     static class EntryPool<K, V> {
         private final Entry<K, QueueValueWrapper.QueueValue<V>>[] pool;
-        private final AtomicInteger index = new AtomicInteger(0);
+        private volatile int index = 0; // Using volatile for visibility and ordering
 
         @SuppressWarnings("unchecked")
         EntryPool(int size) {
@@ -119,21 +121,29 @@ public class ConflatingQueueImplv2<K, V> implements ConflatingQueue<K, V> {
         }
 
         Entry<K, QueueValueWrapper.QueueValue<V>> getOrCreateEntry(K key) {
+            // Read the volatile index (Load barrier ensures visibility)
             int poolIndex = getNextIndex() % pool.length;
+
+            // Access the pool entry
             Entry<K, QueueValueWrapper.QueueValue<V>> entry = pool[poolIndex];
+
+            // Update the key in the entry
             entry.setKey(key);
+
             return entry;
         }
 
         private int getNextIndex() {
-            while (true) {
-                int current = index.get();
-                int next = current >= Integer.MAX_VALUE - pool.length ? 0 : current + 1;
-                if (index.compareAndSet(current, next)) {
-                    return current;
-                }
-            }
+            // Read the current index
+            int current = index;
+
+            // Update the index (volatile write acts as a Store barrier)
+            index = (current >= Integer.MAX_VALUE - pool.length) ? 0 : current + 1;
+
+            // Volatile write ensures updated value is visible to other threads
+            return current;
         }
     }
+
 }
 

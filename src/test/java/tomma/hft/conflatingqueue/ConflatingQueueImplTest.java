@@ -27,6 +27,7 @@ class ConflatingQueueImplTest {
     @BeforeEach
     public void init() {
         conflationQueue = new ConflatingQueueImplv1<>(keyCount, 1_000_000);
+//        conflationQueue = new ConflatingQueueImplv2<>(keyCount, 1_000_000);
         performanceAnalyzerProd = new PerformanceAnalyzer();
         performanceAnalyzerConsum = new PerformanceAnalyzer();
     }

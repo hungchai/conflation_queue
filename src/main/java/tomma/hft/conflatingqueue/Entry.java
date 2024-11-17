@@ -11,7 +11,7 @@ final class Entry<K, V> {
     Entry(final K key, final V value) {
         this.key = Objects.requireNonNull(key);
         this.priceValue = new AtomicReference<>(value);//nulls allowed for value
-        this.address = Long.parseLong(null);
+        this.address = null;
     }
 
     Entry(final K key, final V value, long address) {
